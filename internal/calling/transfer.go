@@ -710,7 +710,7 @@ func (m *Manager) runTransferRotation(session *CallSession, transfer models.Call
 		})
 
 		// Notify this specific agent
-		agentPayload := make(map[string]any, len(basePayload)+2)
+		agentPayload := make(map[string]any)
 		for k, v := range basePayload {
 			agentPayload[k] = v
 		}
@@ -785,7 +785,7 @@ func (m *Manager) runTransferRotation(session *CallSession, transfer models.Call
 		m.db.Model(&models.CallTransfer{}).Where("id = ?", transfer.ID).
 			Update("agent_id", nil)
 
-		fallbackPayload := make(map[string]any, len(basePayload)+1)
+		fallbackPayload := make(map[string]any)
 		for k, v := range basePayload {
 			fallbackPayload[k] = v
 		}
