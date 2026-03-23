@@ -459,7 +459,7 @@ func (a *App) CreateAgentTransfer(r *fastglue.Request) error {
 			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Agent is currently away", nil, "")
 		}
 		agentID = &parsedAgentID
-	} else if teamID != nil {
+	} else if teamID != nil && a.Assigner != nil {
 		// Apply team's assignment strategy
 		agentID = a.Assigner.AssignToTeam(*teamID, orgID, nil, assignment.ChatLoadCounter)
 	} else if settings != nil && settings.AgentAssignment.AssignToSameAgent && contact.AssignedUserID != nil {
@@ -1267,7 +1267,10 @@ func (a *App) createTransferToTeam(account *models.WhatsAppAccount, contact *mod
 
 	settings, _ := a.getChatbotSettingsCached(account.OrganizationID, account.Name)
 
-	agentID := a.Assigner.AssignToTeam(teamID, account.OrganizationID, nil, assignment.ChatLoadCounter)
+	var agentID *uuid.UUID
+	if a.Assigner != nil {
+		agentID = a.Assigner.AssignToTeam(teamID, account.OrganizationID, nil, assignment.ChatLoadCounter)
+	}
 
 	transfer := models.AgentTransfer{
 		BaseModel:       models.BaseModel{ID: uuid.New()},

@@ -9,7 +9,7 @@ export class IVRFlowsPage {
   constructor(page: Page) {
     this.page = page
     this.table = page.locator('table')
-    this.addButton = page.getByRole('button', { name: /create|add|new/i })
+    this.addButton = page.getByRole('button', { name: /create.*flow/i }).first()
     this.searchInput = page.getByPlaceholder(/search/i)
   }
 

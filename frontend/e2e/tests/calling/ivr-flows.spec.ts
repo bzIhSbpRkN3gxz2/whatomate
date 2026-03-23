@@ -23,12 +23,12 @@ test.describe('IVR Flows Page', () => {
   })
 
   test('should have create button', async ({ page }) => {
-    const createButton = page.getByRole('button', { name: /create|add|new/i })
+    const createButton = page.getByRole('button', { name: /create.*flow/i }).first()
     await expect(createButton).toBeVisible()
   })
 
   test('should open flow editor on create', async ({ page }) => {
-    const createButton = page.getByRole('button', { name: /create|add|new/i })
+    const createButton = page.getByRole('button', { name: /create.*flow/i }).first()
     if (await createButton.isVisible()) {
       await createButton.click()
 

@@ -11,7 +11,7 @@ test.describe('Team Assignment Strategy for Calls', () => {
     await page.waitForLoadState('networkidle')
 
     // Click add team
-    const addButton = page.getByRole('button', { name: /add|create|new/i })
+    const addButton = page.getByRole('button', { name: /add team/i }).first()
     await addButton.click()
 
     const dialog = page.getByRole('dialog')
@@ -40,7 +40,7 @@ test.describe('Team Assignment Strategy for Calls', () => {
     await page.goto('/settings/teams')
     await page.waitForLoadState('networkidle')
 
-    const addButton = page.getByRole('button', { name: /add|create|new/i })
+    const addButton = page.getByRole('button', { name: /add team/i }).first()
     await addButton.click()
 
     const dialog = page.getByRole('dialog')
@@ -67,7 +67,7 @@ test.describe('Team Assignment Strategy for Calls', () => {
     await page.goto('/settings/teams')
     await page.waitForLoadState('networkidle')
 
-    const addButton = page.getByRole('button', { name: /add|create|new/i })
+    const addButton = page.getByRole('button', { name: /add team/i }).first()
     await addButton.click()
 
     const dialog = page.getByRole('dialog')
