@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
+	"github.com/shridarpatil/whatomate/internal/utils"
 )
 
 const (
@@ -180,12 +181,5 @@ func (m *Manager) maybeMaskPhone(orgID uuid.UUID, phone string) string {
 	if !settings.MaskPhoneNumbers {
 		return phone
 	}
-	if len(phone) <= 4 {
-		return phone
-	}
-	masked := ""
-	for i := 0; i < len(phone)-4; i++ {
-		masked += "*"
-	}
-	return masked + phone[len(phone)-4:]
+	return utils.MaskPhoneNumber(phone)
 }
