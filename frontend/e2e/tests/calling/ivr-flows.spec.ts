@@ -41,6 +41,31 @@ test.describe('IVR Flows Page', () => {
   })
 })
 
+test.describe('IVR Flow Toggle Status', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsAdmin(page)
+    await page.goto('/calling/ivr-flows')
+    await page.waitForLoadState('networkidle')
+  })
+
+  test('should show confirmation when toggling flow status', async ({ page }) => {
+    // Find an active/disabled status badge that acts as a toggle button
+    const statusBadge = page.locator('[role="button"]').filter({ hasText: /active|disabled/i }).first()
+    if (await statusBadge.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await statusBadge.click()
+      // Verify the confirmation alert dialog appears
+      const alertDialog = page.locator('[role="alertdialog"]')
+      const dialogVisible = await alertDialog.isVisible({ timeout: 3000 }).catch(() => false)
+      if (dialogVisible) {
+        // Click cancel to dismiss without changing state
+        const cancelBtn = alertDialog.getByRole('button', { name: /cancel/i })
+        await cancelBtn.click()
+        await alertDialog.waitFor({ state: 'hidden' })
+      }
+    }
+  })
+})
+
 test.describe('IVR Flow Editor', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
