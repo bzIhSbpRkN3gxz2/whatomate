@@ -159,6 +159,12 @@ const router = createRouter({
           meta: { permission: 'accounts' }
         },
         {
+          path: 'settings/accounts/:id',
+          name: 'account-detail',
+          component: () => import('@/views/settings/AccountDetailView.vue'),
+          meta: { permission: 'accounts' }
+        },
+        {
           path: 'settings/canned-responses',
           name: 'canned-responses',
           component: () => import('@/views/settings/CannedResponsesView.vue'),

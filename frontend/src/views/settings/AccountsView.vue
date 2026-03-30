@@ -139,42 +139,6 @@ async function fetchAccounts() {
   }
 }
 
-function openCreateDialog() {
-  editingAccount.value = null
-  formData.value = {
-    name: '',
-    app_id: '',
-    phone_id: '',
-    business_id: '',
-    access_token: '',
-    app_secret: '',
-    webhook_verify_token: '',
-    api_version: 'v21.0',
-    is_default_incoming: false,
-    is_default_outgoing: false,
-    auto_read_receipt: false
-  }
-  isDialogOpen.value = true
-}
-
-function openEditDialog(account: WhatsAppAccount) {
-  editingAccount.value = account
-  formData.value = {
-    name: account.name,
-    app_id: account.app_id || '',
-    phone_id: account.phone_id,
-    business_id: account.business_id,
-    access_token: '', // Don't show existing token
-    app_secret: '', // Don't show existing secret
-    webhook_verify_token: account.webhook_verify_token,
-    api_version: account.api_version,
-    is_default_incoming: account.is_default_incoming,
-    is_default_outgoing: account.is_default_outgoing,
-    auto_read_receipt: account.auto_read_receipt
-  }
-  isDialogOpen.value = true
-}
-
 async function saveAccount() {
   if (!formData.value.name.trim() || !formData.value.phone_id.trim() || !formData.value.business_id.trim()) {
     toast.error(t('accounts.fillRequired'))
@@ -309,10 +273,12 @@ const webhookUrl = window.location.origin + basePath + '/api/webhook'
       :breadcrumbs="[{ label: $t('settings.title'), href: '/settings' }, { label: $t('settings.accounts') }]"
     >
       <template #actions>
-        <Button variant="outline" size="sm" @click="openCreateDialog">
-          <Plus class="h-4 w-4 mr-2" />
-          {{ $t('accounts.addAccount') }}
-        </Button>
+        <RouterLink to="/settings/accounts/new">
+          <Button variant="outline" size="sm">
+            <Plus class="h-4 w-4 mr-2" />
+            {{ $t('accounts.addAccount') }}
+          </Button>
+        </RouterLink>
       </template>
     </PageHeader>
 
@@ -387,7 +353,7 @@ const webhookUrl = window.location.origin + basePath + '/api/webhook'
                 </div>
                 <div class="min-w-0">
                   <div class="flex items-center gap-2 flex-wrap">
-                    <h3 class="font-semibold text-lg text-white light:text-gray-900">{{ account.name }}</h3>
+                    <RouterLink :to="`/settings/accounts/${account.id}`" class="font-semibold text-lg text-white light:text-gray-900 hover:opacity-80 text-inherit no-underline">{{ account.name }}</RouterLink>
                     <span :class="['px-2 py-0.5 text-xs font-medium rounded-full', getStatusBadgeClass(account.status)]">
                       {{ account.status }}
                     </span>
@@ -511,7 +477,7 @@ const webhookUrl = window.location.origin + basePath + '/api/webhook'
                   </TooltipTrigger>
                   <TooltipContent>{{ $t('accounts.subscribeTooltip') }}</TooltipContent>
                 </Tooltip>
-                <IconButton :icon="Pencil" :label="$t('common.edit')" @click="openEditDialog(account)" />
+                <RouterLink :to="`/settings/accounts/${account.id}`"><IconButton :icon="Pencil" :label="$t('common.edit')" /></RouterLink>
                 <IconButton :icon="Store" :label="$t('accounts.businessProfile')" @click="openProfileDialog(account)">
                   <Store class="h-4 w-4 text-emerald-500" />
                 </IconButton>
@@ -531,10 +497,12 @@ const webhookUrl = window.location.origin + basePath + '/api/webhook'
             </div>
             <p class="text-lg font-medium text-white light:text-gray-900">{{ $t('accounts.noAccounts') }}</p>
             <p class="text-sm mb-4">{{ $t('accounts.noAccountsDesc') }}</p>
-            <Button variant="outline" size="sm" @click="openCreateDialog">
-              <Plus class="h-4 w-4 mr-2" />
-              {{ $t('accounts.addAccount') }}
-            </Button>
+            <RouterLink to="/settings/accounts/new">
+              <Button variant="outline" size="sm">
+                <Plus class="h-4 w-4 mr-2" />
+                {{ $t('accounts.addAccount') }}
+              </Button>
+            </RouterLink>
           </div>
         </div>
 
