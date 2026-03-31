@@ -2,30 +2,11 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { chatbotService } from '@/services/api'
-import { useCrudState } from '@/composables/useCrudState'
 import { toast } from 'vue-sonner'
 import { PageHeader, SearchInput, DataTable, DeleteConfirmDialog, IconButton, ErrorState, type Column } from '@/components/shared'
 import { getErrorMessage } from '@/lib/api-utils'
@@ -33,11 +14,6 @@ import { Plus, Pencil, Trash2, Key } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 
 const { t } = useI18n()
-
-interface ButtonItem {
-  id: string
-  title: string
-}
 
 interface KeywordRule {
   id: string
@@ -50,30 +26,23 @@ interface KeywordRule {
   created_at: string
 }
 
-interface KeywordFormData {
-  keywords: string
-  match_type: 'exact' | 'contains' | 'regex'
-  response_type: 'template' | 'text' | 'flow' | 'transfer'
-  response_content: string
-  buttons: ButtonItem[]
-  priority: number
-  enabled: boolean
-}
-
-const defaultFormData: KeywordFormData = {
-  keywords: '', match_type: 'contains', response_type: 'text',
-  response_content: '', buttons: [], priority: 0, enabled: true
-}
-
 const rules = ref<KeywordRule[]>([])
 const isLoading = ref(true)
 const isDeleting = ref(false)
 const error = ref<string | null>(null)
 const searchQuery = ref('')
-const {
-  isSubmitting, isDialogOpen, editingItem: editingRule, deleteDialogOpen, itemToDelete: ruleToDelete,
-  formData, openDeleteDialog, closeDialog, closeDeleteDialog,
-} = useCrudState<KeywordRule, KeywordFormData>(defaultFormData)
+const deleteDialogOpen = ref(false)
+const ruleToDelete = ref<KeywordRule | null>(null)
+
+function openDeleteDialog(rule: KeywordRule) {
+  ruleToDelete.value = rule
+  deleteDialogOpen.value = true
+}
+
+function closeDeleteDialog() {
+  deleteDialogOpen.value = false
+  ruleToDelete.value = null
+}
 
 // Pagination state
 const currentPage = ref(1)
@@ -91,18 +60,6 @@ const columns = computed<Column<KeywordRule>[]>(() => [
 
 const sortKey = ref('priority')
 const sortDirection = ref<'asc' | 'desc'>('desc')
-
-function addButton() {
-  if (formData.value.buttons.length >= 10) {
-    toast.error(t('keywords.maxButtonsError'))
-    return
-  }
-  formData.value.buttons.push({ id: '', title: '' })
-}
-
-function removeButton(index: number) {
-  formData.value.buttons.splice(index, 1)
-}
 
 onMounted(async () => {
   await fetchRules()
@@ -144,52 +101,6 @@ watch(searchQuery, () => {
 function handlePageChange(page: number) {
   currentPage.value = page
   fetchRules()
-}
-
-async function saveRule() {
-  if (!formData.value.keywords.trim()) {
-    toast.error(t('keywords.enterKeyword'))
-    return
-  }
-
-  // Response content is required for text, optional for transfer
-  if (formData.value.response_type !== 'transfer' && !formData.value.response_content.trim()) {
-    toast.error(t('keywords.enterResponse'))
-    return
-  }
-
-  // Filter out empty buttons
-  const validButtons = formData.value.buttons.filter(b => b.id.trim() && b.title.trim())
-
-  isSubmitting.value = true
-  try {
-    const data = {
-      keywords: formData.value.keywords.split(',').map(k => k.trim()).filter(Boolean),
-      match_type: formData.value.match_type,
-      response_type: formData.value.response_type,
-      response_content: {
-        body: formData.value.response_content,
-        buttons: validButtons.length > 0 ? validButtons : undefined
-      },
-      priority: formData.value.priority,
-      enabled: formData.value.enabled
-    }
-
-    if (editingRule.value) {
-      await chatbotService.updateKeyword(editingRule.value.id, data)
-      toast.success(t('common.updatedSuccess', { resource: t('resources.KeywordRule') }))
-    } else {
-      await chatbotService.createKeyword(data)
-      toast.success(t('common.createdSuccess', { resource: t('resources.KeywordRule') }))
-    }
-
-    closeDialog()
-    await fetchRules()
-  } catch (error: any) {
-    toast.error(getErrorMessage(error, t('common.failedSave', { resource: t('resources.keywordRule') })))
-  } finally {
-    isSubmitting.value = false
-  }
 }
 
 async function confirmDeleteRule() {
@@ -335,130 +246,6 @@ const emptyDescription = computed(() => {
         </div>
       </div>
     </ScrollArea>
-
-    <!-- Create/Edit Dialog -->
-    <Dialog v-model:open="isDialogOpen">
-      <DialogContent class="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{{ editingRule ? $t('keywords.editRule') : $t('keywords.createRule') }} {{ $t('keywords.keywordRule') }}</DialogTitle>
-          <DialogDescription>
-            {{ $t('keywords.dialogDesc') }}
-          </DialogDescription>
-        </DialogHeader>
-        <div class="space-y-4 py-4">
-          <div class="space-y-2">
-            <Label for="keywords">{{ $t('keywords.keywordsLabel') }}</Label>
-            <Input
-              id="keywords"
-              v-model="formData.keywords"
-              :placeholder="$t('keywords.keywordsPlaceholder')"
-            />
-          </div>
-          <div class="space-y-2">
-            <Label for="match_type">{{ $t('keywords.matchTypeLabel') }}</Label>
-            <Select v-model="formData.match_type">
-              <SelectTrigger>
-                <SelectValue :placeholder="$t('keywords.selectMatchType')" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="contains">{{ $t('keywords.contains') }}</SelectItem>
-                <SelectItem value="exact">{{ $t('keywords.exact') }}</SelectItem>
-                <SelectItem value="regex">{{ $t('keywords.regex') }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div class="space-y-2">
-            <Label for="response_type">{{ $t('keywords.responseType') }}</Label>
-            <Select v-model="formData.response_type">
-              <SelectTrigger>
-                <SelectValue :placeholder="$t('keywords.selectResponseType')" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="text">{{ $t('keywords.textResponse') }}</SelectItem>
-                <SelectItem value="transfer">{{ $t('keywords.transferToAgent') }}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div class="space-y-2">
-            <Label for="response">
-              {{ formData.response_type === 'transfer' ? $t('keywords.transferMessage') : $t('keywords.responseMessage') }}
-            </Label>
-            <Textarea
-              id="response"
-              v-model="formData.response_content"
-              :placeholder="formData.response_type === 'transfer' ? $t('keywords.transferPlaceholder') + '...' : $t('keywords.responsePlaceholder') + '...'"
-              :rows="3"
-            />
-            <p v-if="formData.response_type === 'transfer'" class="text-xs text-muted-foreground">
-              {{ $t('keywords.transferHint') }}
-            </p>
-          </div>
-
-          <!-- Buttons Section (only for text responses) -->
-          <div v-if="formData.response_type !== 'transfer'" class="space-y-2">
-            <div class="flex items-center justify-between">
-              <Label>{{ $t('keywords.buttonsOptional') }}</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                @click="addButton"
-                :disabled="formData.buttons.length >= 10"
-              >
-                <Plus class="h-3 w-3 mr-1" />
-                {{ $t('keywords.addButton') }}
-              </Button>
-            </div>
-            <p class="text-xs text-muted-foreground">
-              {{ $t('keywords.buttonsHint') }}
-            </p>
-            <div v-if="formData.buttons.length > 0" class="space-y-2 mt-2">
-              <div
-                v-for="(button, index) in formData.buttons"
-                :key="index"
-                class="flex items-center gap-2"
-              >
-                <Input
-                  v-model="button.id"
-                  :placeholder="$t('keywords.buttonId')"
-                  class="flex-1"
-                />
-                <Input
-                  v-model="button.title"
-                  :placeholder="$t('keywords.buttonTitle')"
-                  class="flex-1"
-                />
-                <IconButton :icon="Trash2" :label="$t('keywords.removeButtonLabel')" class="text-destructive" @click="removeButton(index)" />
-              </div>
-            </div>
-          </div>
-
-          <div class="space-y-2">
-            <Label for="priority">{{ $t('keywords.priorityLabel') }}</Label>
-            <Input
-              id="priority"
-              v-model.number="formData.priority"
-              type="number"
-              min="0"
-            />
-          </div>
-          <div class="flex items-center gap-2">
-            <Switch
-              id="enabled"
-              :checked="formData.enabled"
-              @update:checked="formData.enabled = $event"
-            />
-            <Label for="enabled">{{ $t('keywords.enabled') }}</Label>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" size="sm" @click="isDialogOpen = false">{{ $t('common.cancel') }}</Button>
-          <Button size="sm" @click="saveRule" :disabled="isSubmitting">
-            {{ editingRule ? $t('common.update') : $t('common.create') }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
 
     <DeleteConfirmDialog
       v-model:open="deleteDialogOpen"

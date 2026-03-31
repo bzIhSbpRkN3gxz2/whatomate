@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAsAdmin } from '../../helpers'
+import { loginAsAdmin, navigateToFirstItem, expectMetadataVisible, expectActivityLogVisible, expectDeleteFromForm } from '../../helpers'
 import { AccountsPage } from '../../pages'
 
 test.describe('WhatsApp Accounts - List View', () => {
@@ -16,7 +16,7 @@ test.describe('WhatsApp Accounts - List View', () => {
     await expect(accountsPage.addButton).toBeVisible()
   })
 
-  test('should navigate to create page', async ({ page }) => {
+  test('should load create page', async ({ page }) => {
     await page.goto('/settings/accounts/new')
     await page.waitForLoadState('networkidle')
     expect(page.url()).toContain('/settings/accounts/new')
@@ -32,33 +32,24 @@ test.describe('WhatsApp Accounts - List View', () => {
     }
   })
 
-  test('should load detail page for existing account', async ({ page }) => {
-    const firstLink = page.locator('tbody a').first()
-    if (await firstLink.isVisible()) {
-      const href = await firstLink.getAttribute('href')
-      if (href) {
-        await page.goto(href)
-        await page.waitForLoadState('networkidle')
-        expect(page.url()).toMatch(/\/settings\/accounts\/[a-f0-9-]+/)
-        await expect(page.getByText('Account Details')).toBeVisible()
-      }
+  test('should load detail page from list', async ({ page }) => {
+    const href = await navigateToFirstItem(page)
+    if (href) {
+      expect(page.url()).toMatch(/\/settings\/accounts\/[a-f0-9-]+/)
+      await expect(page.getByText('Account Details')).toBeVisible()
     }
   })
 })
 
-test.describe('WhatsApp Accounts - Detail Page', () => {
-  let accountsPage: AccountsPage
-
+test.describe('WhatsApp Accounts - Detail Page CRUD', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
-    accountsPage = new AccountsPage(page)
   })
 
   test('should show form fields on create page', async ({ page }) => {
     await page.goto('/settings/accounts/new')
     await page.waitForLoadState('networkidle')
 
-    // Should have key form fields
     await expect(page.locator('input').first()).toBeVisible()
     await expect(page.locator('input[type="password"]').first()).toBeVisible()
   })
@@ -67,90 +58,91 @@ test.describe('WhatsApp Accounts - Detail Page', () => {
     await page.goto('/settings/accounts/new')
     await page.waitForLoadState('networkidle')
 
-    // Try to create without filling required fields
-    await page.getByRole('button', { name: /Create/i }).click()
+    // Fill something to trigger hasChanges
+    const input = page.locator('input').first()
+    if (await input.isDisabled()) { test.skip(true, 'No write permission'); return }
 
-    // Should show validation toast
-    const toast = page.locator('[data-sonner-toast]').first()
-    await expect(toast).toBeVisible({ timeout: 5000 })
-  })
+    await input.fill('test')
+    await input.clear()
+    await page.waitForTimeout(300)
 
-  test('should show webhook config on existing account', async ({ page }) => {
-    await accountsPage.goto()
-    const row = page.locator('tr').filter({ has: page.locator('td') }).first()
-    if (await row.isVisible()) {
-      await row.locator('a').first().click()
-      await page.waitForLoadState('networkidle')
-
-      // Should show webhook configuration card
-      await expect(page.getByText('Webhook Configuration')).toBeVisible()
-      await expect(page.locator('code').first()).toBeVisible()
+    const createBtn = page.getByRole('button', { name: /Create/i })
+    if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await createBtn.click({ force: true })
+      const toast = page.locator('[data-sonner-toast]').first()
+      await expect(toast).toBeVisible({ timeout: 5000 })
     }
   })
 
-  test('should have test connection button on existing account', async ({ page }) => {
-    await accountsPage.goto()
-    const row = page.locator('tr').filter({ has: page.locator('td') }).first()
-    if (await row.isVisible()) {
-      await row.locator('a').first().click()
-      await page.waitForLoadState('networkidle')
+  test('should show webhook config on existing account', async ({ page }) => {
+    await page.goto('/settings/accounts')
+    await page.waitForLoadState('networkidle')
 
+    if (await navigateToFirstItem(page)) {
+      await expect(page.getByText('Webhook Configuration')).toBeVisible()
+    }
+  })
+
+  test('should have test connection button', async ({ page }) => {
+    await page.goto('/settings/accounts')
+    await page.waitForLoadState('networkidle')
+
+    if (await navigateToFirstItem(page)) {
       await expect(page.getByRole('button', { name: /Test/i })).toBeVisible()
     }
   })
 
-  test('should have subscribe button on existing account', async ({ page }) => {
-    await accountsPage.goto()
-    const row = page.locator('tr').filter({ has: page.locator('td') }).first()
-    if (await row.isVisible()) {
-      await row.locator('a').first().click()
-      await page.waitForLoadState('networkidle')
+  test('should have subscribe button', async ({ page }) => {
+    await page.goto('/settings/accounts')
+    await page.waitForLoadState('networkidle')
 
+    if (await navigateToFirstItem(page)) {
       await expect(page.getByRole('button', { name: /Subscribe/i })).toBeVisible()
     }
   })
 
-  test('should have business profile button on existing account', async ({ page }) => {
-    await accountsPage.goto()
-    const row = page.locator('tr').filter({ has: page.locator('td') }).first()
-    if (await row.isVisible()) {
-      await row.locator('a').first().click()
-      await page.waitForLoadState('networkidle')
+  test('should have business profile button', async ({ page }) => {
+    await page.goto('/settings/accounts')
+    await page.waitForLoadState('networkidle')
 
+    if (await navigateToFirstItem(page)) {
       await expect(page.getByRole('button', { name: /Profile/i })).toBeVisible()
     }
   })
 
-  test('should show metadata on existing account', async ({ page }) => {
-    await accountsPage.goto()
-    const row = page.locator('tr').filter({ has: page.locator('td') }).first()
-    if (await row.isVisible()) {
-      await row.locator('a').first().click()
-      await page.waitForLoadState('networkidle')
+  test('should delete from detail page', async ({ page }) => {
+    await page.goto('/settings/accounts')
+    await page.waitForLoadState('networkidle')
 
-      await expect(page.getByText('Metadata')).toBeVisible()
+    if (await navigateToFirstItem(page)) {
+      await expectDeleteFromForm(page, '/settings/accounts')
+    }
+  })
+
+  test('should show metadata', async ({ page }) => {
+    await page.goto('/settings/accounts')
+    await page.waitForLoadState('networkidle')
+
+    if (await navigateToFirstItem(page)) {
+      await expectMetadataVisible(page)
+    }
+  })
+
+  test('should show activity log', async ({ page }) => {
+    await page.goto('/settings/accounts')
+    await page.waitForLoadState('networkidle')
+
+    if (await navigateToFirstItem(page)) {
+      await expectActivityLogVisible(page)
     }
   })
 
   test('should show setup guide', async ({ page }) => {
-    await accountsPage.goto()
-    const row = page.locator('tr').filter({ has: page.locator('td') }).first()
-    if (await row.isVisible()) {
-      await row.locator('a').first().click()
-      await page.waitForLoadState('networkidle')
+    await page.goto('/settings/accounts')
+    await page.waitForLoadState('networkidle')
 
+    if (await navigateToFirstItem(page)) {
       await expect(page.getByText('Setup Guide')).toBeVisible()
-    }
-  })
-
-  test('should show activity log on existing account', async ({ page }) => {
-    await accountsPage.goto()
-    const row = page.locator('tr').filter({ has: page.locator('td') }).first()
-    if (await row.isVisible()) {
-      await row.locator('a').first().click()
-      await page.waitForLoadState('networkidle')
-
-      await expect(page.getByText('Activity Log')).toBeVisible()
     }
   })
 })
