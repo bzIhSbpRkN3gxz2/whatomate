@@ -159,6 +159,7 @@ const previewMode = ref<'edit' | 'preview'>('edit')
 const deleteStepDialogOpen = ref(false)
 const stepToDeleteIndex = ref<number | null>(null)
 const hasUnsavedChanges = ref(false)
+const auditRefreshKey = ref(0)
 const cancelDialogOpen = ref(false)
 const webhookHeadersOpen = ref(false)
 const listPickerOpen = ref(false)
@@ -935,6 +936,7 @@ async function saveFlow() {
     }
 
     hasUnsavedChanges.value = false
+    auditRefreshKey.value++
     // Stay on page - don't navigate away
   } catch (error) {
     toast.error(t('common.failedSave', { resource: t('resources.flow') }))
@@ -1843,7 +1845,7 @@ function confirmCancel() {
         <ChevronDown class="h-4 w-4" />
       </CollapsibleTrigger>
       <CollapsibleContent class="px-4 pb-4">
-        <AuditLogPanel resource-type="chatbot_flow" :resource-id="flowId" />
+        <AuditLogPanel :key="auditRefreshKey" resource-type="chatbot_flow" :resource-id="flowId" />
       </CollapsibleContent>
     </Collapsible>
 
