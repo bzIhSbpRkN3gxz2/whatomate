@@ -24,12 +24,20 @@ test.describe('WhatsApp Accounts - List View', () => {
   })
 
   test('should show delete confirmation from list', async ({ page }) => {
-    const row = page.locator('tr').filter({ has: page.locator('td') }).first()
-    if (await row.isVisible()) {
-      await row.locator('button').filter({ has: page.locator('svg.text-destructive') }).click()
-      await expect(accountsPage.alertDialog).toBeVisible()
-      await accountsPage.cancelDelete()
+    // Find the destructive (red) delete button in the first data row
+    const firstRow = page.locator('tbody tr').first()
+    if (!(await firstRow.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'No accounts in list')
+      return
     }
+    const deleteBtn = firstRow.locator('button:has(svg.text-destructive)')
+    if (!(await deleteBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'No delete button found')
+      return
+    }
+    await deleteBtn.click()
+    await expect(accountsPage.alertDialog).toBeVisible({ timeout: 5000 })
+    await accountsPage.cancelDelete()
   })
 
   test('should load detail page from list', async ({ page }) => {

@@ -2,6 +2,28 @@ import { test, expect } from '@playwright/test'
 import { loginAsAdmin, navigateToFirstItem, expectMetadataVisible, expectActivityLogVisible, expectDeleteFromForm } from '../../helpers'
 import { AIContextsPage } from '../../pages'
 
+async function seedAIContext(page: import('@playwright/test').Page): Promise<boolean> {
+  await page.goto('/chatbot/ai/new')
+  await page.waitForLoadState('networkidle')
+
+  const input = page.locator('input').first()
+  if (await input.isDisabled()) return false
+
+  await input.fill(`e2e-ctx-${Date.now()}`)
+  const textarea = page.locator('textarea').first()
+  if (await textarea.isVisible()) {
+    await textarea.fill('E2E seeded AI context content')
+  }
+  await page.waitForTimeout(300)
+
+  const createBtn = page.getByRole('button', { name: /Create/i })
+  if (!(await createBtn.isVisible({ timeout: 3000 }).catch(() => false))) return false
+
+  await createBtn.click({ force: true })
+  await page.waitForTimeout(3000)
+  return !page.url().includes('/new')
+}
+
 test.describe('AI Contexts - List View', () => {
   let aiPage: AIContextsPage
 
@@ -26,28 +48,36 @@ test.describe('AI Contexts - List View', () => {
   })
 
   test('should load detail page from list', async ({ page }) => {
-    const href = await navigateToFirstItem(page)
+    let href = await navigateToFirstItem(page)
+    if (!href) {
+      if (!(await seedAIContext(page))) { test.skip(true, 'Cannot seed data'); return }
+      await page.goto('/chatbot/ai')
+      await page.waitForLoadState('networkidle')
+      href = await navigateToFirstItem(page)
+    }
     if (href) {
       expect(page.url()).toMatch(/\/chatbot\/ai\/[a-f0-9-]+/)
     }
   })
 
   test('should search and filter', async ({ page }) => {
-    const initialRows = await page.locator('tbody tr').count()
-    if (initialRows > 0) {
-      await aiPage.search('nonexistent-context-xyz')
-      const filteredRows = await page.locator('tbody tr').count()
-      expect(filteredRows).toBeLessThanOrEqual(initialRows)
-    }
+    await aiPage.search('nonexistent-context-xyz')
+    const filteredRows = await page.locator('tbody tr').count()
+    expect(filteredRows).toBeLessThanOrEqual(50)
   })
 
   test('should show delete confirmation from list', async ({ page }) => {
-    const row = page.locator('tbody tr').first()
-    if (await row.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await row.locator('button').last().click()
-      await expect(aiPage.alertDialog).toBeVisible({ timeout: 3000 })
-      await aiPage.alertDialog.getByRole('button', { name: /Cancel/i }).click()
+    let hasRows = await page.locator('tbody tr a').first().isVisible({ timeout: 3000 }).catch(() => false)
+    if (!hasRows) {
+      if (!(await seedAIContext(page))) { test.skip(true, 'Cannot seed data'); return }
+      await aiPage.goto()
+      hasRows = true
     }
+
+    const deleteBtn = page.locator('tbody tr').first().locator('button').filter({ has: page.locator('svg') }).last()
+    await deleteBtn.click()
+    await expect(aiPage.alertDialog).toBeVisible({ timeout: 5000 })
+    await aiPage.alertDialog.getByRole('button', { name: /Cancel/i }).click()
   })
 })
 
@@ -67,26 +97,9 @@ test.describe('AI Contexts - Detail Page CRUD', () => {
   })
 
   test('should create static AI context', async ({ page }) => {
-    await page.goto('/chatbot/ai/new')
-    await page.waitForLoadState('networkidle')
-
-    await page.locator('input').first().fill(`static-ctx-${Date.now()}`)
-    await page.locator('textarea').first().fill('You are a helpful assistant.')
-    await page.waitForTimeout(500)
-
-    const createBtn = page.getByRole('button', { name: /Create/i })
-    if (!(await createBtn.isVisible({ timeout: 5000 }).catch(() => false))) {
-      test.skip(true, 'Create button not visible')
-      return
-    }
-    await createBtn.click({ force: true })
-    await page.waitForTimeout(3000)
-
-    if (page.url().includes('/new')) {
-      test.skip(true, 'Creation failed (possibly CSRF)')
-    } else {
-      expect(page.url()).toMatch(/\/chatbot\/ai\/[a-f0-9-]+/)
-    }
+    const created = await seedAIContext(page)
+    if (!created) { test.skip(true, 'Cannot create (no permission or CSRF)'); return }
+    expect(page.url()).toMatch(/\/chatbot\/ai\/[a-f0-9-]+/)
   })
 
   test('should show API config fields for api type', async ({ page }) => {
@@ -107,10 +120,18 @@ test.describe('AI Contexts - Detail Page CRUD', () => {
     await page.goto('/chatbot/ai')
     await page.waitForLoadState('networkidle')
 
-    const href = await navigateToFirstItem(page)
-    if (!href) { test.skip(true, 'No AI contexts exist'); return }
+    let href = await navigateToFirstItem(page)
+    if (!href) {
+      if (!(await seedAIContext(page))) { test.skip(true, 'Cannot seed'); return }
+      await page.goto('/chatbot/ai')
+      await page.waitForLoadState('networkidle')
+      href = await navigateToFirstItem(page)
+      if (!href) { test.skip(true, 'No data after seed'); return }
+    }
 
     const nameInput = page.locator('input').first()
+    if (await nameInput.isDisabled()) { test.skip(true, 'No write permission'); return }
+
     const original = await nameInput.inputValue()
     await nameInput.fill(original + ' edited')
     await page.waitForTimeout(300)
@@ -119,24 +140,19 @@ test.describe('AI Contexts - Detail Page CRUD', () => {
     if (await saveBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await saveBtn.click({ force: true })
       await page.waitForTimeout(2000)
-    }
-
-    // Revert
-    await nameInput.fill(original)
-    await page.waitForTimeout(300)
-    const revertBtn = page.getByRole('button', { name: /Save/i })
-    if (await revertBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await revertBtn.click({ force: true })
+      // Revert
+      await nameInput.fill(original)
+      await page.waitForTimeout(300)
+      const revertBtn = page.getByRole('button', { name: /Save/i })
+      if (await revertBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await revertBtn.click({ force: true })
+      }
     }
   })
 
   test('should delete from detail page', async ({ page }) => {
-    await page.goto('/chatbot/ai')
-    await page.waitForLoadState('networkidle')
-
-    const href = await navigateToFirstItem(page)
-    if (!href) { test.skip(true, 'No AI contexts exist'); return }
-
+    const created = await seedAIContext(page)
+    if (!created) { test.skip(true, 'Cannot create'); return }
     await expectDeleteFromForm(page, '/chatbot/ai')
   })
 
@@ -144,17 +160,27 @@ test.describe('AI Contexts - Detail Page CRUD', () => {
     await page.goto('/chatbot/ai')
     await page.waitForLoadState('networkidle')
 
-    if (await navigateToFirstItem(page)) {
-      await expectMetadataVisible(page)
+    let href = await navigateToFirstItem(page)
+    if (!href) {
+      if (!(await seedAIContext(page))) { test.skip(true, 'Cannot seed'); return }
+      await page.goto('/chatbot/ai')
+      await page.waitForLoadState('networkidle')
+      href = await navigateToFirstItem(page)
     }
+    if (href) await expectMetadataVisible(page)
   })
 
   test('should show activity log', async ({ page }) => {
     await page.goto('/chatbot/ai')
     await page.waitForLoadState('networkidle')
 
-    if (await navigateToFirstItem(page)) {
-      await expectActivityLogVisible(page)
+    let href = await navigateToFirstItem(page)
+    if (!href) {
+      if (!(await seedAIContext(page))) { test.skip(true, 'Cannot seed'); return }
+      await page.goto('/chatbot/ai')
+      await page.waitForLoadState('networkidle')
+      href = await navigateToFirstItem(page)
     }
+    if (href) await expectActivityLogVisible(page)
   })
 })

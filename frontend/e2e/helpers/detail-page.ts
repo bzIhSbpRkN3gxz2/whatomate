@@ -13,7 +13,6 @@ export async function expectActivityLogVisible(page: Page) {
 }
 
 export async function expectSaveButtonOnChange(page: Page) {
-  // Make a change to the first input
   const input = page.locator('input').first()
   const original = await input.inputValue()
   await input.fill(original + '-test')
@@ -22,7 +21,6 @@ export async function expectSaveButtonOnChange(page: Page) {
   const saveBtn = page.getByRole('button', { name: /Save/i })
   await expect(saveBtn).toBeVisible({ timeout: 5000 })
 
-  // Revert
   await input.fill(original)
 }
 
@@ -39,18 +37,28 @@ export async function expectDeleteFromForm(page: Page, listUrl: string) {
 }
 
 /**
- * Navigate to the first item's detail page from a list view.
- * Returns the href or null if no items exist.
+ * Navigate to the first data item's detail page from a list view.
+ * Only matches links inside table rows that point to a UUID detail page
+ * (excludes /new links and empty state links).
+ * Returns the href or null if no data items exist.
  */
 export async function navigateToFirstItem(page: Page): Promise<string | null> {
-  const firstLink = page.locator('tbody a').first()
-  if (!(await firstLink.isVisible({ timeout: 5000 }).catch(() => false))) {
-    return null
-  }
-  const href = await firstLink.getAttribute('href')
-  if (href) {
-    await page.goto(href)
-    await page.waitForLoadState('networkidle')
-  }
+  // Wait for table to load
+  await page.waitForTimeout(1000)
+
+  // Find links in table body that contain a UUID pattern (not /new)
+  const dataLinks = page.locator('tbody tr a').filter({
+    hasNot: page.locator('text=Add'),
+  })
+
+  const count = await dataLinks.count()
+  if (count === 0) return null
+
+  // Check if the first link href contains a UUID (not /new)
+  const href = await dataLinks.first().getAttribute('href')
+  if (!href || href.includes('/new')) return null
+
+  await page.goto(href)
+  await page.waitForLoadState('networkidle')
   return href
 }
