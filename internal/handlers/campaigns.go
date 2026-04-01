@@ -645,7 +645,7 @@ func (a *App) RetryFailed(r *fastglue.Request) error {
 
 // ImportRecipients implements adding recipients to a campaign
 func (a *App) ImportRecipients(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+	orgID, userID, err := a.getOrgAndUserID(r)
 	if err != nil {
 		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
 	}
@@ -695,6 +695,19 @@ func (a *App) ImportRecipients(r *fastglue.Request) error {
 
 	a.Log.Info("Recipients added to campaign", "campaign_id", id, "count", len(req.Recipients))
 
+	// Log recipient addition as audit
+	phoneNumbers := make([]string, len(req.Recipients))
+	for i, rec := range req.Recipients {
+		phoneNumbers[i] = rec.PhoneNumber
+	}
+	audit.LogAudit(a.DB, orgID, userID, audit.GetUserName(a.DB, userID),
+		"campaign", id, models.AuditActionUpdated, nil, nil,
+		map[string]any{
+			"field":     "recipients_added",
+			"old_value": nil,
+			"new_value": fmt.Sprintf("%d recipients added", len(req.Recipients)),
+		})
+
 	return r.SendEnvelope(map[string]interface{}{
 		"message":          "Recipients added successfully",
 		"added_count":      len(req.Recipients),
@@ -741,7 +754,7 @@ func (a *App) GetCampaignRecipients(r *fastglue.Request) error {
 
 // DeleteCampaignRecipient deletes a single recipient from a campaign
 func (a *App) DeleteCampaignRecipient(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+	orgID, userID, err := a.getOrgAndUserID(r)
 	if err != nil {
 		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
 	}
@@ -766,7 +779,11 @@ func (a *App) DeleteCampaignRecipient(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Can only delete recipients from draft campaigns", nil, "")
 	}
 
-	// Verify recipient belongs to campaign and delete
+	// Load recipient for audit before deleting
+	var recipient models.BulkMessageRecipient
+	a.DB.Where("id = ? AND campaign_id = ?", recipientUUID, campaignUUID).First(&recipient)
+
+	// Delete recipient
 	result := a.DB.Where("id = ? AND campaign_id = ?", recipientUUID, campaignUUID).Delete(&models.BulkMessageRecipient{})
 	if result.Error != nil {
 		a.Log.Error("Failed to delete recipient", "error", result.Error)
@@ -779,6 +796,14 @@ func (a *App) DeleteCampaignRecipient(r *fastglue.Request) error {
 
 	// Update campaign recipient count
 	a.DB.Model(campaign).Update("total_recipients", gorm.Expr("total_recipients - 1"))
+
+	audit.LogAudit(a.DB, orgID, userID, audit.GetUserName(a.DB, userID),
+		"campaign", campaignUUID, models.AuditActionUpdated, nil, nil,
+		map[string]any{
+			"field":     "recipient_removed",
+			"old_value": recipient.PhoneNumber,
+			"new_value": nil,
+		})
 
 	return r.SendEnvelope(map[string]interface{}{
 		"message": "Recipient deleted successfully",

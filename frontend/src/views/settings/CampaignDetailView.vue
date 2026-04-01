@@ -185,6 +185,7 @@ const isLoadingRecipients = ref(false)
 const deletingRecipientId = ref<string | null>(null)
 const showAddRecipientsDialog = ref(false)
 const isAddingRecipients = ref(false)
+const auditRefreshKey = ref(0)
 const recipientsInput = ref('')
 const addRecipientsTab = ref('manual')
 const csvFile = ref<File | null>(null)
@@ -336,6 +337,7 @@ async function loadCampaign() {
     campaign.value = data
     syncForm()
     nextTick(() => { hasChanges.value = false })
+    auditRefreshKey.value++
   } catch {
     isNotFound.value = true
   } finally {
@@ -554,10 +556,51 @@ async function openAddRecipientsDialog() {
   showAddRecipientsDialog.value = true
 }
 
+const manualInputValidation = computed(() => {
+  const params = templateParamNames.value
+  const lines = recipientsInput.value.trim().split('\n').filter((line: string) => line.trim())
+
+  if (lines.length === 0) {
+    return { isValid: false, totalLines: 0, validLines: 0, invalidLines: [] as { lineNumber: number; reason: string }[] }
+  }
+
+  const invalidLines: { lineNumber: number; reason: string }[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const parts = lines[i].split(',').map((p: string) => p.trim())
+    const phone = parts[0]?.replace(/[^\d+]/g, '')
+
+    if (!phone || !phone.match(/^\+?\d{10,15}$/)) {
+      invalidLines.push({ lineNumber: i + 1, reason: 'Invalid phone number' })
+      continue
+    }
+
+    const providedParams = parts.slice(1).filter((p: string) => p.length > 0).length
+    if (params.length > 0 && providedParams < params.length) {
+      invalidLines.push({
+        lineNumber: i + 1,
+        reason: `Missing parameters (need ${params.length}, got ${providedParams})`
+      })
+    }
+  }
+
+  return {
+    isValid: invalidLines.length === 0 && lines.length > 0,
+    totalLines: lines.length,
+    validLines: lines.length - invalidLines.length,
+    invalidLines
+  }
+})
+
 async function addRecipients() {
   if (!campaign.value) return
 
-  const lines = recipientsInput.value.trim().split('\n').filter(line => line.trim())
+  if (!manualInputValidation.value.isValid) {
+    toast.error('Please fix validation errors before adding')
+    return
+  }
+
+  const lines = recipientsInput.value.trim().split('\n').filter((line: string) => line.trim())
   if (lines.length === 0) {
     toast.error(t('campaigns.enterPhoneNumber', 'Please enter at least one phone number'))
     return
@@ -1007,6 +1050,7 @@ onMounted(async () => {
     <!-- Audit Log -->
     <AuditLogPanel
       v-if="campaign && !isNew"
+      :key="auditRefreshKey"
       resource-type="campaign"
       :resource-id="campaign.id"
     />
@@ -1103,10 +1147,29 @@ onMounted(async () => {
               class="font-mono text-sm"
             />
           </div>
+          <!-- Validation Feedback -->
+          <div v-if="recipientsInput.trim()">
+            <p v-if="manualInputValidation.isValid" class="text-xs text-green-600">
+              {{ manualInputValidation.validLines }} valid recipient{{ manualInputValidation.validLines !== 1 ? 's' : '' }}
+            </p>
+            <div v-else-if="manualInputValidation.invalidLines.length > 0" class="text-xs space-y-1">
+              <p class="text-destructive font-medium">
+                {{ manualInputValidation.invalidLines.length }} of {{ manualInputValidation.totalLines }} lines have errors:
+              </p>
+              <ul class="list-disc list-inside text-destructive space-y-0.5">
+                <li v-for="err in manualInputValidation.invalidLines.slice(0, 5)" :key="err.lineNumber">
+                  Line {{ err.lineNumber }}: {{ err.reason }}
+                </li>
+                <li v-if="manualInputValidation.invalidLines.length > 5" class="text-muted-foreground">
+                  ...and {{ manualInputValidation.invalidLines.length - 5 }} more
+                </li>
+              </ul>
+            </div>
+          </div>
           <DialogFooter>
             <Button
               @click="addRecipients"
-              :disabled="isAddingRecipients || !recipientsInput.trim()"
+              :disabled="isAddingRecipients || !manualInputValidation.isValid"
             >
               <UserPlus class="h-4 w-4 mr-1" />
               {{ isAddingRecipients ? $t('common.adding', 'Adding...') : $t('campaigns.addRecipients', 'Add Recipients') }}
