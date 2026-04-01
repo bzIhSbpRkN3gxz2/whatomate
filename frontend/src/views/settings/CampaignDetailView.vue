@@ -154,9 +154,10 @@ function getStatusClass(status: string): string {
 async function loadAccounts() {
   try {
     const response = await api.get('/accounts')
-    accounts.value = (response.data as any).data || response.data || []
+    const data = (response.data as any).data || response.data
+    accounts.value = data?.accounts || data || []
   } catch {
-    // Silently fail — accounts list is non-critical
+    accounts.value = []
   }
 }
 
@@ -169,7 +170,8 @@ async function loadTemplates() {
     const response = await api.get('/templates', {
       params: { whatsapp_account: form.value.whatsapp_account },
     })
-    templates.value = (response.data as any).data || response.data || []
+    const data = (response.data as any).data || response.data
+    templates.value = data?.templates || data || []
   } catch {
     templates.value = []
   }
@@ -341,7 +343,7 @@ onMounted(async () => {
               <SelectValue :placeholder="$t('campaigns.selectAccount', 'Select account')" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-for="account in accounts" :key="account.id" :value="account.id">
+              <SelectItem v-for="account in accounts" :key="account.name" :value="account.name">
                 {{ account.name }}
               </SelectItem>
             </SelectContent>
@@ -354,7 +356,7 @@ onMounted(async () => {
               <SelectValue :placeholder="form.whatsapp_account ? $t('campaigns.selectTemplate', 'Select template') : $t('campaigns.selectAccountFirst', 'Select an account first')" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-for="tmpl in templates" :key="tmpl.id" :value="tmpl.id">
+              <SelectItem v-for="tmpl in templates.filter(t => t.id)" :key="tmpl.id" :value="tmpl.id">
                 {{ tmpl.display_name || tmpl.name }}
               </SelectItem>
             </SelectContent>

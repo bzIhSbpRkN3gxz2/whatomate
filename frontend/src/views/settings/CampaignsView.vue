@@ -577,22 +577,6 @@ function resetForm() {
   clearCampaignMedia()
 }
 
-function openEditDialog(campaign: Campaign) {
-  editingCampaignId.value = campaign.id
-  newCampaign.value = {
-    name: campaign.name,
-    whatsapp_account: campaign.whatsapp_account || '',
-    template_id: campaign.template_id || ''
-  }
-  showCreateDialog.value = true
-}
-
-function openCreateDialog() {
-  editingCampaignId.value = null
-  resetForm()
-  showCreateDialog.value = true
-}
-
 async function saveCampaign() {
   if (!newCampaign.value.name) {
     toast.error(t('campaigns.enterCampaignName'))
@@ -1284,10 +1268,12 @@ async function addRecipientsFromCSV() {
       icon-gradient="bg-gradient-to-br from-rose-500 to-pink-600 shadow-rose-500/20"
     >
       <template #actions>
-        <Button variant="outline" size="sm" @click="openCreateDialog">
-          <Plus class="h-4 w-4 mr-2" />
-          {{ $t('campaigns.createCampaign') }}
-        </Button>
+        <RouterLink to="/campaigns/new">
+          <Button variant="outline" size="sm">
+            <Plus class="h-4 w-4 mr-2" />
+            {{ $t('campaigns.createCampaign') }}
+          </Button>
+        </RouterLink>
       </template>
     </PageHeader>
 
@@ -1480,7 +1466,7 @@ async function addRecipientsFromCSV() {
                   <div class="flex items-center justify-end gap-1">
                     <IconButton :icon="Eye" :label="$t('campaigns.viewRecipients')" class="h-8 w-8" @click="viewRecipients(campaign)" />
                     <IconButton v-if="campaign.status === 'draft'" :icon="UserPlus" :label="$t('campaigns.addRecipients')" class="h-8 w-8" @click="openAddRecipientsDialog(campaign as any)" />
-                    <IconButton v-if="campaign.status === 'draft'" :icon="Pencil" :label="$t('campaigns.editCampaign')" class="h-8 w-8" @click="openEditDialog(campaign)" />
+                    <RouterLink v-if="campaign.status === 'draft'" :to="`/campaigns/${campaign.id}`"><IconButton :icon="Pencil" :label="$t('campaigns.editCampaign')" class="h-8 w-8" /></RouterLink>
                     <IconButton
                       v-if="campaign.status === 'draft' && campaignNeedsMedia(campaign) && !campaignHasMedia(campaign)"
                       :icon="ImageIcon"
@@ -1540,10 +1526,12 @@ async function addRecipientsFromCSV() {
                   </div>
                 </template>
                 <template #empty-action>
-                  <Button v-if="!searchQuery" variant="outline" size="sm" @click="showCreateDialog = true">
-                    <Plus class="h-4 w-4 mr-2" />
-                    {{ $t('campaigns.createCampaign') }}
-                  </Button>
+                  <RouterLink v-if="!searchQuery" to="/campaigns/new">
+                    <Button variant="outline" size="sm">
+                      <Plus class="h-4 w-4 mr-2" />
+                      {{ $t('campaigns.createCampaign') }}
+                    </Button>
+                  </RouterLink>
                 </template>
               </DataTable>
             </CardContent>
