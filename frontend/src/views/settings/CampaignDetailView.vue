@@ -1222,7 +1222,7 @@ onUnmounted(() => {
         <TabsContent value="csv" class="space-y-3 mt-3">
           <div class="space-y-1.5">
             <Label class="text-xs text-muted-foreground">
-              {{ $t('campaigns.csvFormatHint', 'CSV must include a phone_number (or phone, mobile, number) column. Optionally include a name (or recipient_name) column.') }}
+              {{ $t('campaigns.csvFormatHint', 'CSV must include a phone_number (or phone, mobile, number) column. Optionally include a name (or recipient_name) column, followed by template parameter columns.') }}
             </Label>
             <div
               class="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
