@@ -16,6 +16,7 @@ import UnsavedChangesDialog from '@/components/shared/UnsavedChangesDialog.vue'
 import { ConfirmDialog } from '@/components/shared'
 import HeaderMediaUpload from '@/components/shared/HeaderMediaUpload.vue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,6 +73,7 @@ import {
   UserPlus,
   Upload,
   FileSpreadsheet,
+  ChevronDown,
 } from 'lucide-vue-next'
 
 interface Campaign {
@@ -187,6 +189,8 @@ const deletingRecipientId = ref<string | null>(null)
 const showAddRecipientsDialog = ref(false)
 const isAddingRecipients = ref(false)
 const auditRefreshKey = ref(0)
+const existingMediaUrl = ref<string | null>(null)
+const showMediaUpload = ref(false)
 const recipientsInput = ref('')
 const addRecipientsTab = ref('manual')
 const csvFile = ref<File | null>(null)
@@ -247,7 +251,8 @@ const recipientPlaceholder = computed(() => {
 const manualEntryFormat = computed(() => {
   const params = templateParamNames.value
   if (params.length === 0) return 'phone_number, name (optional)'
-  return `phone_number, name, ${params.join(', ')}`
+  const paramLabels = params.map(p => /^\d+$/.test(p) ? `param${p}` : p)
+  return `phone_number, name, ${paramLabels.join(', ')}`
 })
 
 // Status helpers
@@ -505,6 +510,17 @@ async function retryFailed() {
 }
 
 // --- Recipients ---
+async function loadExistingMedia() {
+  if (!campaign.value?.id) return
+  try {
+    const response = await campaignsService.getMedia(campaign.value.id)
+    const blob = new Blob([response.data], { type: (response.headers as any)['content-type'] })
+    existingMediaUrl.value = URL.createObjectURL(blob)
+  } catch {
+    existingMediaUrl.value = null
+  }
+}
+
 async function loadRecipients() {
   if (isNew.value || !campaign.value) return
   isLoadingRecipients.value = true
@@ -769,6 +785,10 @@ onMounted(async () => {
       }
     }
     await loadRecipients()
+    // Load media preview if exists
+    if (campaign.value?.header_media_id) {
+      loadExistingMedia()
+    }
   }
 
   // Subscribe to real-time campaign stats updates
@@ -923,9 +943,36 @@ onUnmounted(() => {
         </div>
 
         <!-- Media Upload Section -->
-        <div v-if="templateNeedsMedia && isDraft" class="space-y-1.5">
+        <div v-if="templateNeedsMedia" class="space-y-1.5">
           <Label class="text-xs">{{ $t('campaigns.headerMedia', 'Header Media') }}</Label>
+          <!-- Show existing media with preview -->
+          <div v-if="campaign?.header_media_filename && !mediaFile" class="rounded-lg border overflow-hidden">
+            <!-- Image preview -->
+            <img
+              v-if="campaign.header_media_mime_type?.startsWith('image/') && existingMediaUrl"
+              :src="existingMediaUrl"
+              :alt="campaign.header_media_filename"
+              class="w-full max-h-48 object-contain bg-muted"
+            />
+            <!-- Video preview -->
+            <video
+              v-else-if="campaign.header_media_mime_type?.startsWith('video/') && existingMediaUrl"
+              :src="existingMediaUrl"
+              controls
+              class="w-full max-h-48"
+            />
+            <!-- File info bar -->
+            <div class="flex items-center gap-2 px-3 py-2 bg-muted/50 text-sm">
+              <Upload class="h-4 w-4 text-muted-foreground shrink-0" />
+              <span class="truncate flex-1">{{ campaign.header_media_filename }}</span>
+              <Button v-if="isDraft" variant="ghost" size="sm" class="h-6 text-xs" @click="showMediaUpload = true">
+                {{ $t('campaigns.replace', 'Replace') }}
+              </Button>
+            </div>
+          </div>
+          <!-- Upload component for drafts without existing media or when replacing -->
           <HeaderMediaUpload
+            v-if="isDraft && (!campaign?.header_media_filename || mediaFile || showMediaUpload)"
             :file="mediaFile"
             :preview-url="mediaPreview"
             :accept-types="mediaAcceptTypes"
@@ -934,18 +981,12 @@ onUnmounted(() => {
             @clear="clearMedia"
           />
         </div>
-        <div v-else-if="templateNeedsMedia && !isDraft && campaign?.header_media_filename" class="space-y-1.5">
-          <Label class="text-xs">{{ $t('campaigns.headerMedia', 'Header Media') }}</Label>
-          <div class="flex items-center gap-2 p-2 bg-muted rounded-lg text-sm">
-            <Upload class="h-4 w-4 text-muted-foreground shrink-0" />
-            <span class="truncate">{{ campaign.header_media_filename }}</span>
-          </div>
-        </div>
 
-        <div class="space-y-1.5">
+        <!-- Schedule field hidden until scheduling functionality is implemented -->
+        <!-- <div class="space-y-1.5">
           <Label class="text-xs">{{ $t('campaigns.scheduledAt', 'Schedule') }}</Label>
           <Input v-model="form.scheduled_at" type="datetime-local" :disabled="!isDraft" />
-        </div>
+        </div> -->
         <div v-if="!isNew && campaign" class="space-y-1.5">
           <Label class="text-xs">{{ $t('campaigns.status', 'Status') }}</Label>
           <div>
@@ -1021,18 +1062,23 @@ onUnmounted(() => {
       </CardContent>
     </Card>
 
-    <!-- Recipients Card -->
+    <!-- Recipients Card (collapsible) -->
     <Card v-if="!isNew && campaign">
-      <CardHeader class="pb-3 flex flex-row items-center justify-between">
-        <CardTitle class="text-sm font-medium">
-          {{ $t('campaigns.recipients', 'Recipients') }} ({{ recipients.length }})
-        </CardTitle>
-        <Button v-if="isDraft" variant="outline" size="sm" @click="openAddRecipientsDialog">
-          <UserPlus class="h-4 w-4 mr-1" />
-          {{ $t('campaigns.addRecipients', 'Add') }}
-        </Button>
-      </CardHeader>
-      <CardContent>
+      <Collapsible :default-open="recipients.length > 0 && recipients.length <= 20">
+        <CardHeader class="pb-3 flex flex-row items-center justify-between">
+          <CollapsibleTrigger class="flex items-center gap-2 cursor-pointer hover:opacity-80">
+            <ChevronDown class="h-4 w-4 text-muted-foreground transition-transform [[data-state=closed]_&]:rotate-[-90deg]" />
+            <CardTitle class="text-sm font-medium">
+              {{ $t('campaigns.recipients', 'Recipients') }} ({{ recipients.length }})
+            </CardTitle>
+          </CollapsibleTrigger>
+          <Button v-if="isDraft" variant="outline" size="sm" @click="openAddRecipientsDialog">
+            <UserPlus class="h-4 w-4 mr-1" />
+            {{ $t('campaigns.addRecipients', 'Add') }}
+          </Button>
+        </CardHeader>
+        <CollapsibleContent>
+        <CardContent>
         <div v-if="isLoadingRecipients" class="text-center py-8 text-sm text-muted-foreground">
           {{ $t('common.loading', 'Loading...') }}
         </div>
@@ -1083,6 +1129,8 @@ onUnmounted(() => {
           </Table>
         </div>
       </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
 
     <!-- Audit Log -->
