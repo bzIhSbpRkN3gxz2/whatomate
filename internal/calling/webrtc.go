@@ -263,7 +263,8 @@ func (m *Manager) createPeerConnection() (*webrtc.PeerConnection, error) {
 
 	// On cloud/AWS, map private IP to public IP so ICE candidates
 	// advertise the reachable address instead of the internal one.
-	if m.config.PublicIP != "" {
+	// Skip when relay_only — host candidates are not used in relay mode.
+	if m.config.PublicIP != "" && !m.config.RelayOnly {
 		if err := settingEngine.SetICEAddressRewriteRules(webrtc.ICEAddressRewriteRule{
 			External:        []string{m.config.PublicIP},
 			AsCandidateType: webrtc.ICECandidateTypeHost,
@@ -285,10 +286,10 @@ func (m *Manager) createPeerConnection() (*webrtc.PeerConnection, error) {
 	// Debug: log ICE candidates and connection state to diagnose TURN issues.
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c == nil {
-			m.log.Debug("ICE gathering complete (no more candidates)")
+			m.log.Info("ICE gathering complete (no more candidates)")
 			return
 		}
-		m.log.Debug("ICE candidate gathered",
+		m.log.Info("ICE candidate gathered",
 			"type", c.Typ.String(),
 			"address", c.Address,
 			"port", c.Port,
@@ -297,7 +298,7 @@ func (m *Manager) createPeerConnection() (*webrtc.PeerConnection, error) {
 		)
 	})
 	pc.OnICEConnectionStateChange(func(state webrtc.ICEConnectionState) {
-		m.log.Debug("ICE connection state changed", "state", state.String())
+		m.log.Info("ICE connection state changed", "state", state.String())
 	})
 
 	return pc, nil
