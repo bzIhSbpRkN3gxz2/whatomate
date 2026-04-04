@@ -160,6 +160,13 @@ test.describe('Message Templates - Detail Page', () => {
     const href = await navigateToFirstItem(page)
     if (!href) { test.skip(true, 'No templates exist'); return }
 
+    // Expand the collapsible details card
+    const detailsHeader = page.getByText('Details', { exact: true })
+    if (await detailsHeader.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await detailsHeader.click()
+      await page.waitForTimeout(300)
+    }
+
     const input = page.locator('input').first()
     if (await input.isDisabled()) { test.skip(true, 'No write permission'); return }
 
