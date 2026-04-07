@@ -82,6 +82,7 @@ const { t } = useI18n()
 const authStore = useAuthStore()
 
 const bodyHint = 'Use {{1}}, {{2}} for positional or {{name}}, {{email}} for named parameters.'
+const mixedVariablesHint = 'Cannot mix positional ({{1}}, {{2}}) and named ({{name}}) variables. Use one type only.'
 
 const templateId = computed(() => route.params.id as string)
 const isNew = computed(() => templateId.value === 'new')
@@ -693,9 +694,7 @@ onMounted(async () => {
             :rows="6"
             :disabled="!canWrite || !isEditable"
           />
-          <p v-if="hasMixedVariables" class="text-xs text-destructive">
-            {{ $t('templates.mixedVariables', 'Cannot mix positional ({{1}}, {{2}}) and named ({{name}}) variables. Use one type only.') }}
-          </p>
+          <p v-if="hasMixedVariables" class="text-xs text-destructive" v-text="mixedVariablesHint" />
           <p v-else class="text-xs text-muted-foreground" v-text="bodyHint" />
         </div>
 
