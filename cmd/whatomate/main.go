@@ -131,6 +131,11 @@ func runServer(args []string) {
 		lo.Warn("Debug mode is enabled in production! This may expose sensitive information.")
 	}
 
+	// Require explicit CORS origins in production
+	if cfg.App.Environment == "production" && cfg.Server.AllowedOrigins == "" {
+		lo.Fatal("server.allowed_origins must be set in production (e.g. \"https://app.example.com\")")
+	}
+
 	// Set log level based on environment
 	if cfg.App.Environment == "production" {
 		lo = logf.New(logf.Opts{
