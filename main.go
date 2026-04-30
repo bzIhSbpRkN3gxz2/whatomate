@@ -33,9 +33,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("whatomate version %s\n", Version)
-		fmt.Printf("  commit: %s\n", Commit)
-		fmt.Printf("  built:  %s\n", Date)
+		fmt.Printf("whatomate version %s (commit: %s, built: %s)\n", Version, Commit, Date)
 	},
 }
 
