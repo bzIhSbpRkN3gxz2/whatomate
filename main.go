@@ -45,8 +45,9 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		// Print error to stderr with a newline for readability in terminal output
-		fmt.Fprintf(os.Stderr, "\nError: %v\n", err)
+		// Print error to stderr without the leading newline - the extra blank line
+		// felt unnecessary when piping output to other tools.
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
