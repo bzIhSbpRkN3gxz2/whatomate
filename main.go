@@ -23,7 +23,9 @@ var rootCmd = &cobra.Command{
 	Short: "WhatsApp automation tool",
 	Long: `whatomate is a CLI tool for automating WhatsApp messages and workflows.
 It allows you to send messages, manage contacts, and automate
-repetitive WhatsApp tasks from the command line.`,
+repetitive WhatsApp tasks from the command line.
+
+Personal fork: https://github.com/myusername/whatomate`,
 	SilenceUsage:  true,
 	SilenceErrors: true, // handle errors ourselves for cleaner output
 }
